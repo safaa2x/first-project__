@@ -1,0 +1,156 @@
+"""
+This program is an intrusion detection system that checks for changes in a folder
+"""
+import hashlib
+import os
+
+
+def get_file_hash(line):
+    """
+    This function takes a line from a file and returns the hash of that line
+    """
+    hash_function = hashlib.new('sha256')
+
+    hash_function.update(line)
+
+    return hash_function.hexdigest()
+
+
+def find_files(path):
+    """
+    This function takes a path and returns a list of all the files in that path
+    """
+    files = []
+    if not os.path.isdir(path):
+        return []
+
+    items = os.listdir(path)
+
+    for item in items:
+        curr_path = os.path.join(path, item)
+        if os.path.join(path, 'ids.txt') == curr_path:
+            continue
+        elif os.path.isdir(curr_path):
+            files.extend(find_files(curr_path))
+        else:
+            files.append(os.path.join(path, item))
+
+    return files
+
+
+def save_hashes(path, files_and_hashes):
+    """
+    This function takes a path and a dictionary of files 
+    and their hashes and writes the files and hashes to a file
+    """
+    complete_path = os.path.join(path, 'ids.txt')
+
+    with open(complete_path, 'w', encoding='utf-8') as f:
+        for file, file_hash in files_and_hashes.items():
+            f.write(file + ":" + file_hash + '\n')
+
+
+def read_hashes(path):
+    """
+    This function takes a path and returns a dictionary of files and their hashes
+    """
+    lines = []
+    hashes = {}
+
+    if not os.path.isfile(path):
+        return hashes
+
+    with open(path, 'r', encoding='utf-8') as f:
+        lines = f.readlines()
+
+    for line in lines:
+        file_path, file_hash = line.split(':')  # [file_path, hash]
+        hashes[file_path] = file_hash.strip()  # {file_path: hash}
+
+    return hashes
+
+
+def compare_hashes(old_hashes, new_hashes):
+    """
+    This function takes two dictionaries of files and their hashes
+    """
+    new_files = []
+    changed_files = []
+    deleted_files = []
+
+    for file in new_hashes:
+        if file not in old_hashes:
+            new_files.append(file)
+        elif new_hashes[file] != old_hashes[file]:
+            changed_files.append(file)
+
+    for file in old_hashes:
+        if file not in new_hashes:
+            deleted_files.append(file)
+
+    return new_files, changed_files, deleted_files
+
+
+def main():
+    """
+    This function is the main function that runs the program
+    """
+    print("Welcome to Intrusion Detection Check")
+    print('------------------------------------')
+
+    
+    while True:
+        path = str(
+            input("What folder(path full or relative) do you want to protect?\n"))
+
+        if os.path.isdir(path):
+            break
+        else:
+            print("The path you entered could not be found, please try again")
+            print()
+
+    old_hashes = read_hashes(os.path.join(path, 'ids.txt'))
+    files = find_files(path)
+
+    output = {}
+    for file in files:
+        with open(file, 'rb') as f:
+            output[file] = get_file_hash(f.read())
+
+    new_files, changed_files, deleted_files = compare_hashes(
+        old_hashes, output)
+
+    print('Report')
+    print('------')
+    if len(new_files) == 0 and len(changed_files) == 0 and len(deleted_files) == 0:
+        print("There where no changes in the folder")
+    else:
+        print("WARNING")
+        print()
+
+        if len(new_files) > 0:
+            print("NEW FILES")
+            print("---------")
+            for file in new_files:
+                print(file)
+            print()
+
+        if len(changed_files) > 0:
+            print("CHANGED FILES")
+            print('-------------')
+            for file in changed_files:
+                print(file)
+            print()
+
+        if len(deleted_files) > 0:
+            print("REMOVED FILES")
+            print('--------------')
+            for file in deleted_files:
+                print(file)
+            print()
+
+        save_hashes(path, output)
+
+
+if __name__ == '__main__':
+    main()
